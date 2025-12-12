@@ -78,3 +78,11 @@ k = 2
 kmeans = KMeans(n_clusters=k, random_state=42)
 clusters = kmeans.fit_predict(X_scaled)
 subset['cluster'] = clusters
+
+label=kmeans.labels_
+
+from collections import Counter
+Counter(label)
+
+score=silhouette_score(X,label)
+print(score)
