@@ -1,88 +1,65 @@
 import pandas as pd
-from sklearn.linear_model import LogisticRegression
+import numpy as np
+from sklearn.mixture import GaussianMixture
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
-import warnings
-import pandas as pd
-from sklearn.preprocessing import StandardScaler
-import matplotlib.pyplot as plt
-from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score
-warnings.filterwarnings("ignore")
 
-data = pd.read_csv("behavior-performance.txt", sep="\t")
-
-rows_per_video = data.groupby('VidID').size()
-
-video_id =90
-subset = data[data["VidID"] == video_id]
-
-if len(subset) < 20:
-    print(f"Video {video_id} has less than 20 rows.")
-
-else:
-  X = subset.drop(columns=["VidID","userID", "s"])
-  Y = subset["s"]
-
-
-X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=42)
-model = LogisticRegression(max_iter=1500).fit(X_train,Y_train)
-Y_pred = model.predict(X_test)
-acc = accuracy_score(Y_test, Y_pred)
-print(f"Video {video_id} Accuracy: {acc}")
-
-video_ids = data['VidID'].unique()
+data = pd.read_csv("files/behavior-performance.txt", sep="\t")
 
 results = {}
+
+video_ids = data['VidID'].unique()
 
 for video_id in video_ids:
     subset = data[data['VidID'] == video_id]
 
-
     if len(subset) < 20:
-        print(f"Video {video_id} has less than 20 rows.")
         results[video_id] = None
         continue
 
-
     X = subset.drop(columns=["VidID", "userID", "s"])
-    Y = subset["s"]
-    X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=42)
+    y = subset["s"]
 
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42
+    )
 
-    model = LogisticRegression(max_iter=1500)
-    model.fit(X_train, Y_train)
+    X_train_0 = X_train[y_train == 0]
+    X_train_1 = X_train[y_train == 1]
 
+    if len(X_train_0) < 2 or len(X_train_1) < 2:
+        results[video_id] = None
+        continue
 
-    Y_pred = model.predict(X_test)
-    acc = accuracy_score(Y_test, Y_pred)
+    gmm0 = GaussianMixture(n_components=2, covariance_type='full', random_state=42)
+    gmm1 = GaussianMixture(n_components=2, covariance_type='full', random_state=42)
+
+    gmm0.fit(X_train_0)
+    gmm1.fit(X_train_1)
+
+    logp0 = gmm0.score_samples(X_test)
+    logp1 = gmm1.score_samples(X_test)
+
+    y_pred = np.where(logp1 > logp0, 1, 0)
+
+    acc = accuracy_score(y_test, y_pred)
     results[video_id] = acc
 
-completed_videos = data.groupby('userID')['VidID'].nunique()
-eligible_students = completed_videos[completed_videos >= 5].index
-subset = data[data['userID'].isin(eligible_students)]
+formatted = []
 
-features = ['fracSpent', 'fracComp', 'fracPaused', 'numPauses', 'avgPBR', 'numRWs', 'numFFs']
-X = subset[features]
+for vid in sorted(results.keys()):
+    acc = results[vid]
+    if acc is None:
+        formatted.append((vid, None))
+    else:
+        formatted.append((vid, round(acc, 4)))
 
-scaler = StandardScaler()
-X_scaled = scaler.fit_transform(X)
+print("\nVideoID | Accuracy")
+print("--------+----------")
 
-inertia = []
-for k in range(1, 20):
-    km = KMeans(n_clusters=k, random_state=42)
-    km.fit(X_scaled)
-    inertia.append(km.inertia_)
+for vid, acc in formatted:
+    if acc is None:
+        print(f"{vid:<7} | N/A")
+    else:
+        print(f"{vid:<7} | {acc:.4f}")
 
-k = 2
-kmeans = KMeans(n_clusters=k, random_state=42)
-clusters = kmeans.fit_predict(X_scaled)
-subset['cluster'] = clusters
-
-label=kmeans.labels_
-
-from collections import Counter
-Counter(label)
-
-score=silhouette_score(X,label)
-print(score)
