@@ -32,12 +32,10 @@ for k in ks:
     bic_scores.append(gmm.bic(X_scaled))
     aic_scores.append(gmm.aic(X_scaled))
     X_sample, labels_sample = resample(X_scaled, labels, n_samples=2000, random_state=0)
-    sil_scores.append(silhouette_score(X_sample, labels_sample))
 
 print("K values:", list(ks))
 print("BIC:", bic_scores)
 print("AIC:", aic_scores)
-print("Silhouette:", sil_scores)
 
 best_k = ks[np.argmin(bic_scores)]
 print("\nBest k based on BIC:", best_k)
